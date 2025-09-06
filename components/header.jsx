@@ -3,10 +3,22 @@ import Link from "next/link";
 import Image from 'next/image';
 import React from 'react'
 import { Button } from './ui/button';
-import { ChevronDown, FileTextIcon, LayoutDashboard, PenBox, StarsIcon } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 
-const Header = () => {
+import { 
+  ChevronDown,
+   FileTextIcon, 
+   LayoutDashboard,
+    PenBox, 
+    StarsIcon } 
+  from 'lucide-react';
+import {
+   DropdownMenu, 
+   DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } 
+   from './ui/dropdown-menu';
+import { checkUser } from '../lib/inngest/checkUser';
+
+const Header = async() => {
+  await checkUser();
   return (
   
     <header className='fixed top-0 w-full border-b bg-background/80 backdrop-blur-md z-50 supports-[backdrop-filter]:bg-background/60'>

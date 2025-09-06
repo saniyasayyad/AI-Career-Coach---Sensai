@@ -1,0 +1,103 @@
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String  @id @default(uuid())
+  clerkUserId   String  @unique //clerk user id
+  email         String  @unique
+  name          String?
+  imageUrl      String?
+  industry      String?         // industry sunindustry 
+
+  industryInsight industryInsight? @relation(fields: [industry], references: [industry])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Profile fields
+  bio             String?
+  experience      Int?
+  skills          String[]
+
+  assessments     Assessments[]
+  resume          Resume?
+  coverLetter     coverLetter[]           
+}
+
+model Assessments {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  quizScore      Float    // quizScore
+  questions      Json[]   // Array {que, ans, userAns, isCorrect}
+  category       String   // "Technical", "Behavioral", etc
+  improvementTip String?  // AI generated improvementTip
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+}
+
+
+model Resume{
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id])
+  content     String    @db.Text
+  atsScore    Float?
+  feedback    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model coverLetter{
+  id          String    @id @default(cuid())
+  userId      String    
+  user        User       @relation(fields: [userId], references: [id])
+  jobDescription  String?
+  companyName   String
+  jobTitle      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model industryInsight {
+ id          String    @id @default(cuid())
+ industry    String    @unique
+
+users       User[]
+salaryRanges  Json[]
+
+growthRate    Float
+demandLevel   DemandLevel
+topSKills     String[]
+
+marketOutlook MarketOutlook
+keyTrends     String[]
+
+lastUpdated   DateTime  @default(now())
+nextUpdate    DateTime
+
+@@index([industry])
+
+}
+enum DemandLevel {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum MarketOutlook {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
