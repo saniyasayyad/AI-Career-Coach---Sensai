@@ -15,9 +15,8 @@ model User {
   email         String  @unique
   name          String?
   imageUrl      String?
-  industry      String?         // industry sunindustry 
+  industry      String?         // industry subindustry 
 
-  industryInsight industryInsight? @relation(fields: [industry], references: [industry])
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -74,12 +73,12 @@ model industryInsight {
  id          String    @id @default(cuid())
  industry    String    @unique
 
-users       User[]
 salaryRanges  Json[]
 
 growthRate    Float
 demandLevel   DemandLevel
-topSKills     String[]
+topSkills     String[]
+recommendedSkills String[]
 
 marketOutlook MarketOutlook
 keyTrends     String[]
