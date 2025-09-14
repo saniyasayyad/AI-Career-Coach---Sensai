@@ -1,0 +1,247 @@
+/* PDF-compatible CSS with standard color values */
+/* This file contains colors converted from oklch() to hex for PDF generation compatibility */
+
+:root {
+  --radius: 0.625rem;
+  --background: #ffffff;
+  --foreground: #000000;
+  --card: #ffffff;
+  --card-foreground: #000000;
+  --popover: #ffffff;
+  --popover-foreground: #000000;
+  --primary: #000000;
+  --primary-foreground: #ffffff;
+  --secondary: #f5f5f5;
+  --secondary-foreground: #000000;
+  --muted: #f5f5f5;
+  --muted-foreground: #737373;
+  --accent: #f5f5f5;
+  --accent-foreground: #000000;
+  --destructive: #dc2626;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --ring: #a3a3a3;
+  --chart-1: #f59e0b;
+  --chart-2: #3b82f6;
+  --chart-3: #1d4ed8;
+  --chart-4: #10b981;
+  --chart-5: #f59e0b;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #000000;
+  --sidebar-primary: #000000;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f5f5f5;
+  --sidebar-accent-foreground: #000000;
+  --sidebar-border: #e5e5e5;
+  --sidebar-ring: #a3a3a3;
+}
+
+.dark {
+  --background: #000000;
+  --foreground: #ffffff;
+  --card: #171717;
+  --card-foreground: #ffffff;
+  --popover: #171717;
+  --popover-foreground: #ffffff;
+  --primary: #e5e5e5;
+  --primary-foreground: #000000;
+  --secondary: #262626;
+  --secondary-foreground: #ffffff;
+  --muted: #262626;
+  --muted-foreground: #a3a3a3;
+  --accent: #262626;
+  --accent-foreground: #ffffff;
+  --destructive: #ef4444;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.15);
+  --ring: #737373;
+  --chart-1: #6366f1;
+  --chart-2: #06b6d4;
+  --chart-3: #f59e0b;
+  --chart-4: #ec4899;
+  --chart-5: #f97316;
+  --sidebar: #171717;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #6366f1;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #262626;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #737373;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+.grid-background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%; 
+  height: 100%;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0.1) 1px, transparent 1px
+  ),
+  linear-gradient(to bottom, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 50px 50px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.grid-background::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, transparent, rgba(0, 0, 0, 0.9));
+}
+
+@layer utilities {
+  .gradient {
+    @apply bg-gradient-to-b from-gray-400 via-gray-200 to-gray-600;
+  }
+  
+  .gradient-title {
+    @apply bg-gradient-to-b from-gray-400 via-gray-200 to-gray-600 font-extrabold tracking-tighter text-transparent bg-clip-text pb-2 pr-2;
+  }
+}
+
+.hero-image-wrapper {
+  perspective: 1000px;
+}
+
+.hero-image {
+  transform: rotateX(15deg) scale(1);
+  transition: transform 0.5s ease-out;
+  will-change: transform;
+}
+
+.hero-image.scrolled {
+ transform: rotateX(0deg) scale(1) translateY(40px);
+}
+
+/* PDF-specific styles */
+#resume-pdf {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  line-height: 1.6;
+  color: #000000;
+  background: #ffffff;
+  padding: 20px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+#resume-pdf h1, #resume-pdf h2, #resume-pdf h3, #resume-pdf h4, #resume-pdf h5, #resume-pdf h6 {
+  color: #000000;
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+#resume-pdf h1 {
+  font-size: 24px;
+  font-weight: bold;
+  border-bottom: 2px solid #000000;
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+
+#resume-pdf h2 {
+  font-size: 18px;
+  font-weight: bold;
+  margin-top: 20px;
+  margin-bottom: 10px;
+}
+
+#resume-pdf h3 {
+  font-size: 16px;
+  font-weight: bold;
+  margin-top: 15px;
+  margin-bottom: 8px;
+}
+
+#resume-pdf p {
+  margin-bottom: 10px;
+  color: #000000;
+}
+
+#resume-pdf ul, #resume-pdf ol {
+  margin-bottom: 10px;
+  padding-left: 20px;
+}
+
+#resume-pdf li {
+  margin-bottom: 5px;
+  color: #000000;
+}
+
+#resume-pdf strong {
+  font-weight: bold;
+  color: #000000;
+}
+
+#resume-pdf em {
+  font-style: italic;
+  color: #000000;
+}
+
+#resume-pdf a {
+  color: #000000;
+  text-decoration: underline;
+}
+
+#resume-pdf code {
+  background-color: #f5f5f5;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  color: #000000;
+}
+
+#resume-pdf pre {
+  background-color: #f5f5f5;
+  padding: 10px;
+  border-radius: 5px;
+  overflow-x: auto;
+  margin-bottom: 10px;
+}
+
+#resume-pdf blockquote {
+  border-left: 4px solid #e5e5e5;
+  padding-left: 15px;
+  margin-left: 0;
+  color: #737373;
+  font-style: italic;
+}
+
+#resume-pdf table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 15px;
+}
+
+#resume-pdf th, #resume-pdf td {
+  border: 1px solid #e5e5e5;
+  padding: 8px;
+  text-align: left;
+  color: #000000;
+}
+
+#resume-pdf th {
+  background-color: #f5f5f5;
+  font-weight: bold;
+}
+
+#resume-pdf hr {
+  border: none;
+  border-top: 1px solid #e5e5e5;
+  margin: 20px 0;
+}

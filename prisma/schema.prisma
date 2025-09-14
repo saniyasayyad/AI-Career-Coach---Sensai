@@ -25,7 +25,7 @@ model User {
 
   assessments     Assessments[]
   resume          Resume?
-  coverLetter     coverLetter[]
+  coverLetters    CoverLetter[]
   salaryInsight   SalaryInsight? // Added salary insight relation
 }
 
@@ -54,15 +54,17 @@ model Resume{
   updatedAt   DateTime  @updatedAt
 }
 
-model coverLetter{
-  id          String    @id @default(cuid())
-  userId      String
-  user        User       @relation(fields: [userId], references: [id])
-  jobDescription  String?
-  companyName   String
-  jobTitle      String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+model CoverLetter {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  content         String    @db.Text
+  jobDescription  String?   @db.Text
+  companyName     String
+  jobTitle        String
+  status          String    @default("completed")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([userId])
 }

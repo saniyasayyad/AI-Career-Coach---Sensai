@@ -23,6 +23,7 @@ import useFetch from "@/hooks/use-fetch";
 import { useUser } from "@clerk/nextjs";
 import { entriesToMarkdown } from "@/app/lib/helper";
 import { resumeSchema } from "@/app/lib/schema";
+import { PDF_COLORS } from "@/app/lib/color-utils";
 // html2pdf will be imported dynamically in the generatePDF function
 
 export default function ResumeBuilder({ initialContent }) {
@@ -118,18 +119,73 @@ export default function ResumeBuilder({ initialContent }) {
       // Dynamically import html2pdf only on the client side
       const html2pdf = (await import("html2pdf.js/dist/html2pdf.min.js")).default;
       
+      // Load PDF-compatible CSS
+      const loadPDFStyles = () => {
+        return new Promise((resolve) => {
+          const link = document.createElement('link');
+          link.rel = 'stylesheet';
+          link.href = '/pdf-styles.css';
+          link.onload = () => resolve();
+          link.onerror = () => resolve(); // Continue even if CSS fails to load
+          document.head.appendChild(link);
+        });
+      };
+
+      await loadPDFStyles();
+      
       const element = document.getElementById("resume-pdf");
+      
+      // Apply PDF-specific styling to the element
+      if (element) {
+        element.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif';
+        element.style.lineHeight = '1.6';
+        element.style.color = PDF_COLORS['--foreground'];
+        element.style.background = PDF_COLORS['--background'];
+        element.style.padding = '20px';
+        element.style.maxWidth = '800px';
+        element.style.margin = '0 auto';
+        
+        // Apply PDF-compatible colors to all child elements
+        const allElements = element.querySelectorAll('*');
+        allElements.forEach(el => {
+          // Reset any oklch colors to PDF-compatible values
+          const computedStyle = window.getComputedStyle(el);
+          if (computedStyle.color && computedStyle.color.includes('oklch')) {
+            el.style.color = PDF_COLORS['--foreground'];
+          }
+          if (computedStyle.backgroundColor && computedStyle.backgroundColor.includes('oklch')) {
+            el.style.backgroundColor = PDF_COLORS['--background'];
+          }
+          if (computedStyle.borderColor && computedStyle.borderColor.includes('oklch')) {
+            el.style.borderColor = PDF_COLORS['--border'];
+          }
+        });
+      }
+      
       const opt = {
         margin: [15, 15],
         filename: "resume.pdf",
         image: { type: "jpeg", quality: 0.98 },
-        html2canvas: { scale: 2 },
+        html2canvas: { 
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: PDF_COLORS['--background'],
+          logging: false,
+          ignoreElements: (element) => {
+            // Ignore elements that might cause issues
+            return element.classList.contains('hidden') || 
+                   element.style.display === 'none' ||
+                   element.tagName === 'SCRIPT';
+          }
+        },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
       };
 
       await html2pdf().set(opt).from(element).save();
     } catch (error) {
       console.error("PDF generation error:", error);
+      toast.error("Failed to generate PDF. Please try again.");
     } finally {
       setIsGenerating(false);
     }
@@ -405,12 +461,21 @@ export default function ResumeBuilder({ initialContent }) {
             />
           </div>
           <div className="hidden">
-            <div id="resume-pdf">
+            <div id="resume-pdf" style={{
+              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
+              lineHeight: '1.6',
+              color: '#000000',
+              background: '#ffffff',
+              padding: '20px',
+              maxWidth: '800px',
+              margin: '0 auto'
+            }}>
               <MDEditor.Markdown
                 source={previewContent}
                 style={{
-                  background: "white",
+                  background: "transparent",
                   color: "black",
+                  fontFamily: 'inherit'
                 }}
               />
             </div>
