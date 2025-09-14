@@ -29,3 +29,31 @@ export const onboardingSchema = z.object({
     ),
         
 });
+
+// Schema for individual entries (experience, education, projects)
+export const entrySchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  organization: z.string().min(1, "Organization is required"),
+  startDate: z.string().min(1, "Start date is required"),
+  endDate: z.string().optional(),
+  description: z.string().min(1, "Description is required"),
+  current: z.boolean().optional(),
+  location: z.string().optional(),
+  skills: z.array(z.string()).optional(),
+  url: z.string().url().optional().or(z.literal("")),
+});
+
+// Schema for the complete resume form
+export const resumeSchema = z.object({
+  contactInfo: z.object({
+    email: z.string().email("Invalid email address").optional(),
+    mobile: z.string().optional(),
+    linkedin: z.string().url("Invalid LinkedIn URL").optional().or(z.literal("")),
+    twitter: z.string().url("Invalid Twitter URL").optional().or(z.literal("")),
+  }).optional(),
+  summary: z.string().optional(),
+  skills: z.string().optional(),
+  experience: z.array(entrySchema).optional(),
+  education: z.array(entrySchema).optional(),
+  projects: z.array(entrySchema).optional(),
+});

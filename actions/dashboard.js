@@ -1,10 +1,8 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
-import { PrismaClient } from "../lib/generated/prisma"; 
+import { db } from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const db = new PrismaClient();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({

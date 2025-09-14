@@ -1,11 +1,9 @@
 "use server";
 
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { PrismaClient } from "../lib/generated/prisma"; // ✅ correct path
+import { db } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { generateAiInsights } from "./dashboard";
-
-const db = new PrismaClient();
 
 // Add this at the top after imports
 export async function debugDatabaseSave(data) {

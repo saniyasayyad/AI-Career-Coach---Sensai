@@ -187,6 +187,44 @@ const DashboardView = ({ insights }) => {
                     </div>
                 </CardContent>
             </Card>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Kry Industry Trends</CardTitle>
+                    <CardDescription>Current trends shaping the industry
+\                    </CardDescription>
+                </CardHeader>
+                <CardContent> 
+                    <ul className="space-y-4">
+                        {insights.keyTrends.map((trend, index) => (
+                            <li key={trend} className="flex items-start space-x-2">
+                                <div className="w-2 h-2 rounded-full bg-primary" />
+                                <span>{trend}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Recommended Skills</CardTitle>
+                    <CardDescription>Skills to consider developing
+\                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                        {insights.recommendedSkills.map((skill) => (
+                            <Badge key={skill} variant="secondary">
+                                {skill}
+                            </Badge>
+                        ))}
+
+                    </div>
+                 </CardContent>
+            </Card>
+        </div>
         </div>
     );
 };
