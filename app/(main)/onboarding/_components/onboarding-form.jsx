@@ -14,13 +14,14 @@ import { Textarea } from '../../../../components/ui/textarea';
 import { Button } from '../../../../components/ui/button';
 import { toast } from 'sonner';
 import useFetch from '../../../../hooks/use-fetch';
-import { updateUser } from '../../../../actions/user';
+import { updateUser,debugDatabaseSave  } from '../../../../actions/user';
 import { Loader2 } from 'lucide-react';
-import { useAuth, useUser } from '@clerk/nextjs'; // Add useUser
+import { useAuth, useUser } from '@clerk/nextjs'; 
+// At the top of your onboarding form file
+
 
 const OnboardingForm = () => {
   const [selectedIndustry, setSelectedIndustry] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { isSignedIn, userId } = useAuth(); // Get userId from auth
   const { user, isLoaded } = useUser(); // Add user loading state
@@ -51,11 +52,9 @@ const OnboardingForm = () => {
 
   const onSubmit = async (values) => {
     try {
-      setIsSubmitting(true);
       // Wait for user to be loaded
       if (!isLoaded) {
         toast.error("Loading user information...");
-        setIsSubmitting(false);
         return;
       }
 
@@ -107,6 +106,10 @@ const OnboardingForm = () => {
       console.log("Sending data to updateUser:", dataToSend);
       
       try {
+        console.log("=== Testing database before submission ===");
+        const debugResult = await debugDatabaseSave(dataToSend);
+        console.log("Debug result:", debugResult);
+        
          const result = await updateUserFn(dataToSend);
          console.log("Update result:", result);
          
@@ -126,7 +129,8 @@ const OnboardingForm = () => {
            toast.success("Profile completed successfully!");
            console.log("Success! Redirecting to dashboard...");
            setTimeout(() => {
-             window.location.href = '/dashboard';
+             router.push('/dashboard');
+             router.refresh();
            }, 1000); // Small delay to ensure toast is seen
            return;
          }
@@ -143,9 +147,7 @@ const OnboardingForm = () => {
          console.error("Error submitting form:", error);
          toast.dismiss(loadingToast);
          toast.error("An unexpected error occurred. Please try again.");
-       } finally {
-         setIsSubmitting(false);
-       }
+       } 
     } catch (error) {
       console.error("Onboarding error:", error);
       
@@ -164,7 +166,8 @@ const OnboardingForm = () => {
   useEffect(() => {
     if (updateResult?.success && !updateLoading) {
       toast.success("Profile completed successfully!");
-      window.location.href = '/dashboard';
+      router.push('/dashboard');
+      router.refresh();
     }
     
     // Handle authentication errors
@@ -336,8 +339,8 @@ const OnboardingForm = () => {
               )}
             </div> 
 
-            <Button type="submit" className="w-full" disabled={updateLoading || isSubmitting}>
-              {(updateLoading || isSubmitting) ? (
+            <Button type="submit" className="w-full" disabled={updateLoading}>
+              {updateLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Saving...

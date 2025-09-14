@@ -1,182 +1,136 @@
 "use server";
 
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { db } from "../lib/inngest/prisma";
+import { PrismaClient } from "../lib/generated/prisma"; // ✅ correct path
 import { redirect } from "next/navigation";
+import { generateAiInsights } from "./dashboard";
+
+const db = new PrismaClient();
+
+// Add this at the top after imports
+export async function debugDatabaseSave(data) {
+  console.log("=== DEBUG: Starting database save ===");
+  console.log("Input data:", JSON.stringify(data, null, 2));
+  
+  try {
+    const { userId } = await auth();
+    console.log("Auth userId:", userId);
+    
+    if (!userId) {
+      console.log("❌ No userId - auth failed");
+      return { error: "No auth" };
+    }
+
+    // Test basic database connection
+    console.log("Testing database connection...");
+    const userCount = await db.user.count();
+    console.log("✅ Database connected. User count:", userCount);
+    
+    // Check if user exists
+    const existingUser = await db.user.findUnique({
+      where: { clerkUserId: userId }
+    });
+    console.log("Existing user found:", !!existingUser);
+    console.log("User ID:", existingUser?.id);
+    
+    return { 
+      success: true, 
+      userId, 
+      userExists: !!existingUser,
+      userDbId: existingUser?.id 
+    };
+  } catch (error) {
+    console.error("❌ Database debug error:", error);
+    return { error: error.message };
+  }
+}
 
 export async function updateUser(data) {
-   console.log("updateUser called with:", data);
-  const { userId } = await auth(); // Add await here
-
-   console.log("Auth userId:", userId);
-   
-   // Validate input data
-   console.log("Validating input data:", {
-     industryProvided: !!data.industry,
-     industryType: typeof data.industry,
-     experienceProvided: !!data.experience,
-     experienceType: typeof data.experience,
-     skillsProvided: !!data.skills,
-     skillsType: typeof data.skills,
-     skillsIsArray: Array.isArray(data.skills),
-     skillsLength: Array.isArray(data.skills) ? data.skills.length : 'N/A'
-   });
-   
-   if (!data) {
-     console.error("No data provided");
-     return { success: false, message: "No data provided" };
-   }
-   
-   if (!data.industry) {
-     console.error("Missing required field: industry");
-     return { success: false, message: "Industry is required" };
-   }
+  console.log("=== SIMPLE UPDATE TEST ===");
+  console.log("updateUser called with:", data);
+  
+  const { userId } = await auth();
   
   if (!userId) {
-    console.error("No userId found in auth()");
-    return { success: false, requiresAuth: true, message: "Authentication expired. Please sign in again." };
+    return { success: false, requiresAuth: true };
   }
 
-  let user = await db.user.findUnique({
-    where: { clerkUserId: userId },
-  });
+  try {
+    // Find user first
+    let user = await db.user.findUnique({
+      where: { clerkUserId: userId },
+    });
+    
+    console.log("User found:", !!user);
 
-  // If user doesn't exist, create them
-  if (!user) {
-    try {
+    if (!user) {
+      // Create user if doesn't exist
       const clerkUser = await currentUser();
-      if (!clerkUser) {
-        return { success: false, requiresAuth: true, message: "Authentication expired. Please sign in again." };
-      }
-
-      const name = `${clerkUser.firstName ?? ""} ${clerkUser.lastName ?? ""}`.trim();
-      
       user = await db.user.create({
         data: {
           clerkUserId: userId,
-          name,
+          name: `${clerkUser.firstName ?? ""} ${clerkUser.lastName ?? ""}`.trim(),
           imageUrl: clerkUser.imageUrl,
           email: clerkUser.emailAddresses[0].emailAddress,
         },
       });
-    } catch (error) {
-      console.error("Error creating user:", error);
-      return { success: false, message: "Failed to create user account. Please try again." };
+      console.log("New user created:", user.id);
     }
-  }
 
-  try {
-    console.log("Starting database transaction");
-    const result = await db.$transaction(
-      async (tx) => {
-        console.log("Looking for industry insight:", data.industry);
-        let industryInsight = null;
-        
-        if (data.industry) {
-          industryInsight = await tx.industryInsight.findUnique({
-            where: { industry: data.industry },
-          });
-          
-          console.log("Industry insight found:", !!industryInsight);
-  
-          if (!industryInsight) {
-            console.log("Creating new industry insight for:", data.industry);
-            try {
-              industryInsight = await tx.industryInsight.create({
-                data: {
-                  industry: data.industry,
-                  salaryRanges: [],
-                  growthRate: 0,
-                  demandLevel: "MEDIUM",
-                  topSkills: [],
-                  marketOutlook: "NEUTRAL",
-                  keyTrends: [],
-                  recommendedSkills: [],
-                  nextUpdate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-                },
-              });
-              console.log("Industry insight created successfully");
-            } catch (createError) {
-              console.error("Error creating industry insight:", createError);
-              throw createError; // Re-throw to be caught by the outer catch
-            }
-          }
-        } else {
-          console.log("No industry provided, skipping industry insight creation");
-        }
+    // Simple update without transaction
+    const processedSkills = Array.isArray(data.skills) ? data.skills : 
+      (data.skills && typeof data.skills === 'string') ? 
+      data.skills.split(',').map(s => s.trim()).filter(Boolean) : [];
 
-        console.log("Updating user with ID:", user.id);
-        
-        // Process skills before update
-        const processedSkills = Array.isArray(data.skills) ? data.skills : 
-                    (data.skills && typeof data.skills === 'string') ? 
-                    data.skills.split(',').map(s => s.trim()).filter(Boolean) : [];
-        
-        console.log("Processed skills for update:", processedSkills);
-        
-        // Prepare update data
-        const updateData = {
-          industry: data.industry,
-          experience: parseInt(data.experience) || 0, 
-          bio: data.bio || "",
-          skills: processedSkills,
-        };
-        
-        console.log("User update data:", updateData);
-        
-        try {
-          const updatedUser = await tx.user.update({
-            where: { id: user.id },
-            data: updateData,
-          });
-          
-          console.log("User updated successfully:", updatedUser.id);
-          return { updatedUser, industryInsight };
-        } catch (updateError) {
-          console.error("Error updating user:", updateError);
-          throw updateError; // Re-throw to be caught by the outer catch
-        }
-      },
-      {
-        timeout: 30000,
-      }
-    );
+    const updateData = {
+      industry: data.industry,
+      experience: parseInt(data.experience) || 0,
+      bio: data.bio || "",
+      skills: processedSkills,
+    };
 
-    console.log("Transaction completed successfully, returning result:", result);
-    return { success: true, ...result };
+    console.log("Updating with:", updateData);
+
+    const updatedUser = await db.user.update({
+      where: { id: user.id },
+      data: updateData,
+    });
+
+    console.log("✅ User updated successfully:", updatedUser.id);
+    
+    // Verify the update worked
+    const verifyUser = await db.user.findUnique({
+      where: { id: user.id },
+      select: { industry: true, experience: true, skills: true, bio: true }
+    });
+    
+    console.log("✅ Verification - data in DB:", verifyUser);
+    
+    return { success: true, updatedUser };
+
   } catch (error) {
-    console.error("Error updating user and industry:", error);
-    
-    // Handle specific database errors
-    if (error.code === 'P2002') {
-      return { success: false, message: "A user with this information already exists" };
-    }
-    
-    if (error.code === 'P2025') {
-      return { success: false, message: "User not found" };
-    }
-    
-    // Handle validation errors
-    if (error.code === 'P2003') {
-      return { success: false, message: "Invalid data provided" };
-    }
-    
-    return { success: false, message: "Failed to update profile. Please try again." };
+    console.error("❌ Update error:", error);
+    return { success: false, message: error.message };
   }
 }
 
 export async function getUserOnboardingStatus() {
   try {
-    const { userId } = await auth(); // Add await here too
+    const { userId } = await auth();
     if (!userId) {
       redirect("/sign-in");
       return;
     }
 
-  try {
     const user = await db.user.findUnique({
       where: { clerkUserId: userId },
-      select: { industry: true },
+      select: {
+        id: true,
+        industry: true,
+        experience: true,
+        skills: true,
+        bio: true,
+      },
     });
 
     if (!user) {
@@ -184,14 +138,67 @@ export async function getUserOnboardingStatus() {
       return { isOnboarded: false };
     }
 
-    return { isOnboarded: !!user.industry };
+    return {
+      isOnboarded: !!user.industry,
+      user: user,
+    };
   } catch (error) {
-    console.error("Error fetching user onboarding status:", error.message);
+    console.error("Error fetching user onboarding status:", error);
     return { isOnboarded: false, error: error.message };
   }
-  } catch (authError) {
-    console.error("Authentication error in getUserOnboardingStatus:", authError);
-    redirect("/sign-in");
-    return;
+}
+
+export async function getUserSalaryInsights() {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return { success: false, message: "Authentication required" };
+    }
+
+    const user = await db.user.findUnique({
+      where: { clerkUserId: userId },
+      include: {
+        salaryInsight: true,
+      },
+    });
+
+    if (!user) {
+      return { success: false, message: "User not found" };
+    }
+
+    if (!user.salaryInsight && user.industry) {
+      try {
+        const salaryData = await generateSalaryInsights(
+          user.industry,
+          user.experience || 0,
+          user.skills || []
+        );
+
+        if (salaryData) {
+          const newSalaryInsight = await db.salaryInsight.create({
+            data: {
+              userId: user.id,
+              industry: user.industry,
+              experience: user.experience || 0,
+              ...salaryData,
+              lastUpdated: new Date(),
+            },
+          });
+
+          return { success: true, salaryInsight: newSalaryInsight };
+        }
+      } catch (error) {
+        console.error("Error generating salary insights:", error);
+      }
+    }
+
+    return {
+      success: true,
+      salaryInsight: user.salaryInsight,
+      hasProfile: !!(user.industry && user.experience !== null),
+    };
+  } catch (error) {
+    console.error("Error fetching salary insights:", error);
+    return { success: false, message: "Failed to fetch salary insights" };
   }
 }

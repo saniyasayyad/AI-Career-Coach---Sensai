@@ -1,68 +1,131 @@
-"use server"
+"use server";
 
 import { auth } from "@clerk/nextjs/server";
-import { db } from "../lib/inngest/prisma";
-import {GoogleGenerativeAI} from "@google/generative-ai";
+import { PrismaClient } from "../lib/generated/prisma"; 
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+const db = new PrismaClient();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-pro",
+  model: "gemini-1.5-pro",
 });
 
-export const generateAiInsights = async (industry) => {
-    const prompt = 
-    `Analyze the current trends, challenges, and opportunities in the ${industry} industry. in ONLY the following JSON format without any additional notes or explanations:
-    {
-        "salaryRanges" : [
-        { "role : "string", "min": number, "max": number, "median": number, "location" : "string" }
-        ],
-
-        "growthRate": number, 
-        "demandLevel" : "HIGH/MEDIUM/LOW",
-        "topSkills": [ "skill1", "skill2", "skill3" ],
-        "marketOutlook": "POSITIVE"/ "NEUTRAL" / "NEGATIVE",
-        "keyTrends": [ "trend1", "trend2", "trend3" ],
-        "recommendations": ["skill1", "skill2", "skill3"]
-    }
-        IMPORTANT: Return ONLY the JSON. No additional text or markdown formatting.
-        Include at least 5 common roles for salary ranges.
-        Growth rate should be a percentage value.
-        Include at least 5 skills and trends.
-
-    `;
-
-    const result = await model.generateContent(promt)
+// ✅ Wrapper to call Gemini safely with quick fail on rate limit (SSR-friendly)
+async function callGemini(prompt) {
+  try {
+    const result = await model.generateContent(prompt);
     const response = result.response;
-   const text = response.text();
+    const text = response.text();
 
-   const cleanedText = text.replace(/```(?:json)?\n/g, '').trim();
-   return JSON.parse(cleanedText);
-};
+    const cleanedText = text.replace(/```(?:json)?\n?/g, "").trim();
+    return JSON.parse(cleanedText);
+  } catch (error) {
+    const message = String(error?.message || "");
+    if (message.includes("429") || message.toLowerCase().includes("quota")) {
+      const rateLimitError = new Error("RATE_LIMIT");
+      rateLimitError.code = "RATE_LIMIT";
+      throw rateLimitError;
+    }
+    throw error;
+  }
+}
+
+export async function generateAiInsights(industry) {
+  const prompt = `
+  Analyze the current trends, challenges, and opportunities in the ${industry} industry.
+  Return ONLY this EXACT JSON with UPPERCASE enum values, no markdown or prose:
+  {
+    "salaryRanges": [
+      { "role": "string", "min": 0, "max": 0, "median": 0, "location": "string" }
+    ],
+    "growthRate": 0,
+    "demandLevel": "HIGH" | "MEDIUM" | "LOW",
+    "topSkills": ["string"],
+    "recommendedSkills": ["string"],
+    "marketOutlook": "POSITIVE" | "NEUTRAL" | "NEGATIVE",
+    "keyTrends": ["string"]
+  }
+  `;
+
+  return callGemini(prompt);
+}
 
 export async function getIndustryInsights() {
-    const { userId } = await auth();
-    if (!userId) throw new Error("User not authenticated");
-    const user = await db.user.findUnique({
-        where: { 
-            clerkUserId: userId,
-        },
+  const { userId } = await auth();
+  if (!userId) throw new Error("User not authenticated");
+
+  const user = await db.user.findUnique({
+    where: { clerkUserId: userId },
+    select: { id: true, industry: true },
+  });
+
+  if (!user) throw new Error("User not found");
+  if (!user.industry) throw new Error("User has no industry set");
+
+  // ✅ Step 1: Check if cached in DB
+  let industryInsight = await db.industryInsight.findUnique({
+    where: { industry: user.industry },
+  });
+
+  if (industryInsight) {
+    console.log("Returning cached insights from DB");
+    return industryInsight;
+  }
+
+  // ✅ Step 2: Generate from Gemini if not cached
+  try {
+    const insights = await generateAiInsights(user.industry);
+
+    // Ensure keys align with Prisma schema
+    const payload = {
+      industry: user.industry,
+      salaryRanges: insights.salaryRanges ?? [],
+      growthRate: typeof insights.growthRate === "number" ? insights.growthRate : 0,
+      demandLevel: insights.demandLevel ?? "MEDIUM",
+      topSkills: Array.isArray(insights.topSkills) ? insights.topSkills : [],
+      recommendedSkills: Array.isArray(insights.recommendedSkills)
+        ? insights.recommendedSkills
+        : Array.isArray(insights.recommendations)
+        ? insights.recommendations
+        : [],
+      marketOutlook: insights.marketOutlook ?? "NEUTRAL",
+      keyTrends: Array.isArray(insights.keyTrends) ? insights.keyTrends : [],
+      nextUpdate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    };
+
+    industryInsight = await db.industryInsight.create({
+      data: payload,
     });
 
-    if (!user) throw new Error("User not found");
-
-    if(!user.industryInsight) {
-        const insights = await generateAiInsights(user.industry);
-
-        const industryInsight = await db.industryInsight.create({
-            data: {
-                industry: user.industry,
-                ...insights,
-                nextUpdate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-            },
-        });
-
-        return industryInsight;
+    console.log("Generated new insights from Gemini");
+    return industryInsight;
+  } catch (error) {
+    // Graceful fallback on rate limits or AI errors
+    if (error?.code === "RATE_LIMIT") {
+      console.warn("Gemini rate limited. Returning fallback insights.");
+    } else {
+      console.error("Failed to generate industry insights:", error);
     }
 
-   return user.industryInsight;
+    const fallback = {
+      industry: user.industry,
+      salaryRanges: [],
+      growthRate: 0,
+      demandLevel: "MEDIUM",
+      topSkills: [],
+      recommendedSkills: [],
+      marketOutlook: "NEUTRAL",
+      keyTrends: [],
+      nextUpdate: new Date(Date.now() + 60 * 60 * 1000), // retry in 1 hour
+    };
+
+    try {
+      // Try to persist fallback for caching layer; ignore unique conflicts
+      industryInsight = await db.industryInsight.create({ data: fallback });
+      return industryInsight;
+    } catch (_) {
+      return fallback; // return non-persisted fallback
+    }
+  }
 }

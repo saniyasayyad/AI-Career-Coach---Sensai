@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client-js"
   output   = "../lib/generated/prisma"
@@ -15,8 +14,7 @@ model User {
   email         String  @unique
   name          String?
   imageUrl      String?
-  industry      String?         // industry subindustry 
-
+  industry      String?         // industry subindustry
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -27,7 +25,8 @@ model User {
 
   assessments     Assessments[]
   resume          Resume?
-  coverLetter     coverLetter[]           
+  coverLetter     coverLetter[]
+  salaryInsight   SalaryInsight? // Added salary insight relation
 }
 
 model Assessments {
@@ -44,7 +43,6 @@ model Assessments {
   @@index([userId])
 }
 
-
 model Resume{
   id          String    @id @default(cuid())
   userId      String    @unique
@@ -58,7 +56,7 @@ model Resume{
 
 model coverLetter{
   id          String    @id @default(cuid())
-  userId      String    
+  userId      String
   user        User       @relation(fields: [userId], references: [id])
   jobDescription  String?
   companyName   String
@@ -69,26 +67,52 @@ model coverLetter{
   @@index([userId])
 }
 
-model industryInsight {
- id          String    @id @default(cuid())
- industry    String    @unique
+// Added SalaryInsight model for AI-generated salary data
+model SalaryInsight {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  industry      String
+  experience    Int
+  
+  // Salary ranges (stored as integers for USD amounts)
+  entryLevelMin Int?
+  entryLevelMax Int?
+  midLevelMin   Int?
+  midLevelMax   Int?
+  seniorLevelMin Int?
+  seniorLevelMax Int?
+  userEstimate  Int?
+  
+  // Market insights
+  marketTrends     String?
+  recommendations  String[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastUpdated   DateTime @default(now())
 
-salaryRanges  Json[]
-
-growthRate    Float
-demandLevel   DemandLevel
-topSkills     String[]
-recommendedSkills String[]
-
-marketOutlook MarketOutlook
-keyTrends     String[]
-
-lastUpdated   DateTime  @default(now())
-nextUpdate    DateTime
-
-@@index([industry])
-
+  @@index([userId])
+  @@index([industry])
 }
+
+model industryInsight {
+  id          String    @id @default(cuid())
+  industry    String    @unique
+  salaryRanges  Json[]
+  growthRate    Float
+  demandLevel   DemandLevel
+  topSkills     String[]
+  recommendedSkills String[]
+  marketOutlook MarketOutlook
+  keyTrends     String[]
+  lastUpdated   DateTime  @default(now())
+  nextUpdate    DateTime
+
+  @@index([industry])
+}
+
 enum DemandLevel {
   HIGH
   MEDIUM
