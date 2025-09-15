@@ -87,7 +87,6 @@ export function EntryForm({ type, entries, onChange }) {
     }
   }, [improvedContent, improveError, isImproving, setValue]);
 
-  // Replace handleImproveDescription with this
   const handleImproveDescription = async () => {
     const description = watch("description");
     if (!description) {
@@ -97,7 +96,7 @@ export function EntryForm({ type, entries, onChange }) {
 
     await improveWithAIFn({
       current: description,
-      type: type.toLowerCase(), // 'experience', 'education', or 'project'
+      type: type.toLowerCase(), 
     });
   };
 
@@ -110,6 +109,7 @@ export function EntryForm({ type, entries, onChange }) {
               <CardTitle className="text-sm font-medium">
                 {item.title} @ {item.organization}
               </CardTitle>
+              
               <Button
                 variant="outline"
                 size="icon"
@@ -142,7 +142,13 @@ export function EntryForm({ type, entries, onChange }) {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Input
-                  placeholder="Title/Position"
+                  placeholder={
+                    type === "Education"
+                      ? "Institute Name"
+                      : type === "Project"
+                      ? "Project Title"
+                      : "Title/Position"
+                  }
                   {...register("title")}
                   error={errors.title}
                 />
@@ -150,9 +156,17 @@ export function EntryForm({ type, entries, onChange }) {
                   <p className="text-sm text-red-500">{errors.title.message}</p>
                 )}
               </div>
+
+             
               <div className="space-y-2">
                 <Input
-                  placeholder="Organization/Company"
+                  placeholder={
+                    type === "Education"
+                      ? "Degree"
+                      : type === "Project"
+                      ? "Tech Stack"
+                      : "Organization/Company"
+                  }
                   {...register("organization")}
                   error={errors.organization}
                 />
@@ -209,7 +223,11 @@ export function EntryForm({ type, entries, onChange }) {
 
             <div className="space-y-2">
               <Textarea
-                placeholder={`Description of your ${type.toLowerCase()}`}
+                placeholder={
+                  type === "Education"
+                    ? "Your academic achievements"
+                    : `Description of your ${type.toLowerCase()}`
+                }
                 className="h-32"
                 {...register("description")}
                 error={errors.description}

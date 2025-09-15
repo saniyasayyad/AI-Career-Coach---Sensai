@@ -4,8 +4,9 @@ import { db } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const apiKey = process.env.GEMINI_API_KEY;
+const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
+const model = genAI ? genAI.getGenerativeModel({ model: "gemini-1.5-flash" }) : null;
 
 // Validate API key
 if (!process.env.GEMINI_API_KEY) {
@@ -75,9 +76,48 @@ export async function generateCoverLetter(data) {
     Format the letter in markdown.
   `;
 
+  // Helper: retry with exponential backoff on transient errors (e.g., 503)
+  const generateWithRetry = async (maxAttempts = 3) => {
+    let lastErr;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        if (!model) throw new Error("AI model unavailable");
+        const result = await model.generateContent(prompt);
+        return result.response.text().trim();
+      } catch (err) {
+        lastErr = err;
+        const msg = String(err?.message || "");
+        // Retry on 429/503/overloaded messages
+        if (/(overloaded|unavailable|quota|rate|429|503)/i.test(msg) && attempt < maxAttempts) {
+          const delayMs = 500 * Math.pow(2, attempt - 1);
+          await new Promise((r) => setTimeout(r, delayMs));
+          continue;
+        }
+        break;
+      }
+    }
+    throw lastErr;
+  };
+
+  // Fallback template if AI is unavailable
+  const buildFallbackLetter = () => {
+    const lines = [];
+    lines.push(`Dear Hiring Manager,`);
+    lines.push("");
+    lines.push(`I am excited to apply for the ${data.jobTitle} role at ${data.companyName}. With ${user.experience ?? "several"} years in ${user.industry ?? "the industry"}, I have developed strengths in ${(user.skills || []).slice(0,5).join(", ")}.`);
+    lines.push("");
+    lines.push(`In my recent experience, I have delivered measurable results by leveraging my technical skills and collaborating across teams. I am confident I can quickly contribute to your goals and bring a positive, proactive attitude.`);
+    lines.push("");
+    lines.push(`I would welcome the opportunity to discuss how my background aligns with your needs. Thank you for your time and consideration.`);
+    lines.push("");
+    lines.push(`Sincerely,`);
+    lines.push(`\n`);
+    lines.push(`{Your Name}`);
+    return lines.join("\n");
+  };
+
   try {
-    const result = await model.generateContent(prompt);
-    const content = result.response.text().trim();
+    const content = await generateWithRetry(3);
 
     if (!content) {
       throw new Error("No content generated from AI");
@@ -121,6 +161,20 @@ export async function generateCoverLetter(data) {
     } else if (error.message.includes("database") || error.message.includes("prisma")) {
       console.error("Database error details:", error);
       throw new Error(`Database error: ${error.message}`);
+    } else if (/(overloaded|unavailable|quota|rate|429|503)/i.test(String(error?.message || ""))) {
+      // Graceful fallback content so user isn't blocked
+      const fallback = buildFallbackLetter();
+      const coverLetter = await db.coverLetter.create({
+        data: {
+          content: fallback,
+          jobDescription: data.jobDescription,
+          companyName: data.companyName,
+          jobTitle: data.jobTitle,
+          status: "completed",
+          userId: user.id,
+        },
+      });
+      return coverLetter;
     } else {
       throw new Error(`Failed to generate cover letter: ${error.message}`);
     }

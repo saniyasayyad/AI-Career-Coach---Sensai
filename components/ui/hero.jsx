@@ -40,17 +40,15 @@ const HeroSection = () => {
             <Link href="/dashboard">
                     <Button size='lg' className="px-8  ">Get Started</Button>
                 </Link>
-            <Link href="https://www.youtube.com/roadsidecoder">
-                <Button size='lg' className="px-8" variant="outline">Get Started</Button>
-            </Link>
+           
         </div>
 
         <div className="hero-image-wrapper mt-5 md:mt-0">
             <div ref = {imageRef} className="hero-image">
                 <Image
                     src={"/banner.jpeg"}
-                    width={1080}
-                    height={480}
+                    width={1000}
+                    height={300}
                     alt="Banner Sensai"
                     className="rounded-lg shadow-2xl border mx-auto" priority
                 />

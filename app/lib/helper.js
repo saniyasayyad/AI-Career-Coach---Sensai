@@ -14,3 +14,10 @@ export function entriesToMarkdown(entries, type) {
       .join("\n\n")
   );
 }
+
+// Helper to convert certifications to markdown as bullet list
+export function certificationsToMarkdown(entries) {
+  if (!entries?.length) return "";
+  const lines = entries.map((e) => `- ${e.title} — ${e.organization}`);
+  return `## Certifications & Achievements\n\n${lines.join("\n")}`;
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   AlertTriangle,
@@ -21,9 +21,10 @@ import { saveResume } from "@/actions/resume";
 import { EntryForm } from "./entry-form";
 import useFetch from "@/hooks/use-fetch";
 import { useUser } from "@clerk/nextjs";
-import { entriesToMarkdown } from "@/app/lib/helper";
+import { entriesToMarkdown, certificationsToMarkdown } from "@/app/lib/helper";
 import { resumeSchema } from "@/app/lib/schema";
 import { PDF_COLORS } from "@/app/lib/color-utils";
+
 // html2pdf will be imported dynamically in the generatePDF function
 
 export default function ResumeBuilder({ initialContent }) {
@@ -47,8 +48,15 @@ export default function ResumeBuilder({ initialContent }) {
       experience: [],
       education: [],
       projects: [],
+      certifications: [],
     },
   });
+
+  const {
+    fields: certificationFields,
+    append: appendCertification,
+    remove: removeCertification,
+  } = useFieldArray({ control, name: "certifications" });
 
   const {
     loading: isSaving,
@@ -57,7 +65,7 @@ export default function ResumeBuilder({ initialContent }) {
     error: saveError,
   } = useFetch(saveResume);
 
-  // Watch form fields for preview updates
+  
   const formValues = watch();
 
   useEffect(() => {
@@ -83,22 +91,39 @@ export default function ResumeBuilder({ initialContent }) {
   }, [saveResult, saveError, isSaving]);
 
   const getContactMarkdown = () => {
-    const { contactInfo } = formValues;
+    const { contactInfo } = formValues || {};
+    const fullName = (user && user.fullName) ? user.fullName : "";
     const parts = [];
-    if (contactInfo.email) parts.push(`📧 ${contactInfo.email}`);
-    if (contactInfo.mobile) parts.push(`📱 ${contactInfo.mobile}`);
-    if (contactInfo.linkedin)
-      parts.push(`💼 [LinkedIn](${contactInfo.linkedin})`);
-    if (contactInfo.twitter) parts.push(`🐦 [Twitter](${contactInfo.twitter})`);
+    if (contactInfo?.email) parts.push(`📧 ${contactInfo.email}`);
+    if (contactInfo?.mobile) parts.push(`☏ ${contactInfo.mobile}`);
 
-    return parts.length > 0
-      ? `## <div align="center">${user.fullName}</div>
-        \n\n<div align="center">\n\n${parts.join(" | ")}\n\n</div>`
-      : "";
+    // LinkedIn: show only the label as a clickable link (no username)
+    if (contactInfo?.linkedin) {
+      parts.push(`[ℹ️ LinkedIn](${contactInfo.linkedin})`);
+    }
+
+    // GitHub: use the stored field (twitter now used as GitHub URL); show icon + username clickable; no raw URL text
+    if (contactInfo?.twitter) {
+      try {
+        // Always render only the label as clickable, without username
+        new URL(contactInfo.twitter);
+        parts.push(`[🔗 GitHub](${contactInfo.twitter})`);
+      } catch {
+        parts.push(`🔗 GitHub`);
+      }
+    }
+
+    if (!fullName && parts.length === 0) return "";
+
+    const contactLine = parts.join(" | ");
+    // Use pure markdown so links render as clickable text. We'll center via PDF CSS.
+    return contactLine
+      ? `# ${fullName}\n\n${contactLine}`
+      : `# ${fullName}`;
   };
 
   const getCombinedContent = () => {
-    const { summary, skills, experience, education, projects } = formValues;
+    const { summary, skills, experience, education, projects, certifications } = formValues;
     return [
       getContactMarkdown(),
       summary && `## Professional Summary\n\n${summary}`,
@@ -106,6 +131,7 @@ export default function ResumeBuilder({ initialContent }) {
       entriesToMarkdown(experience, "Work Experience"),
       entriesToMarkdown(education, "Education"),
       entriesToMarkdown(projects, "Projects"),
+      certificationsToMarkdown(certifications),
     ]
       .filter(Boolean)
       .join("\n\n");
@@ -122,6 +148,13 @@ export default function ResumeBuilder({ initialContent }) {
       // Load PDF-compatible CSS
       const loadPDFStyles = () => {
         return new Promise((resolve) => {
+          // Check if the CSS is already loaded
+          const existingLink = document.querySelector('link[href="/pdf-styles.css"]');
+          if (existingLink) {
+            resolve();
+            return;
+          }
+          
           const link = document.createElement('link');
           link.rel = 'stylesheet';
           link.href = '/pdf-styles.css';
@@ -135,32 +168,58 @@ export default function ResumeBuilder({ initialContent }) {
       
       const element = document.getElementById("resume-pdf");
       
-      // Apply PDF-specific styling to the element
-      if (element) {
-        element.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif';
-        element.style.lineHeight = '1.6';
-        element.style.color = PDF_COLORS['--foreground'];
-        element.style.background = PDF_COLORS['--background'];
-        element.style.padding = '20px';
-        element.style.maxWidth = '800px';
-        element.style.margin = '0 auto';
-        
-        // Apply PDF-compatible colors to all child elements
-        const allElements = element.querySelectorAll('*');
-        allElements.forEach(el => {
-          // Reset any oklch colors to PDF-compatible values
-          const computedStyle = window.getComputedStyle(el);
-          if (computedStyle.color && computedStyle.color.includes('oklch')) {
-            el.style.color = PDF_COLORS['--foreground'];
-          }
-          if (computedStyle.backgroundColor && computedStyle.backgroundColor.includes('oklch')) {
-            el.style.backgroundColor = PDF_COLORS['--background'];
-          }
-          if (computedStyle.borderColor && computedStyle.borderColor.includes('oklch')) {
-            el.style.borderColor = PDF_COLORS['--border'];
-          }
-        });
+      if (!element) {
+        throw new Error("Resume element not found. Please ensure the resume is properly loaded.");
       }
+      
+      // Apply PDF-specific styling to the element
+      element.style.fontFamily = 'Georgia, "Times New Roman", serif';
+      element.style.lineHeight = '1.6';
+      element.style.color = PDF_COLORS['--foreground'];
+      element.style.background = PDF_COLORS['--background'];
+      element.style.padding = '20px';
+      element.style.maxWidth = '800px';
+      element.style.margin = '0 auto';
+      element.style.border = '2px solid #000000';
+      
+      // Apply PDF-compatible colors to all child elements
+      const allElements = element.querySelectorAll('*');
+      allElements.forEach(el => {
+        // Reset any oklch colors to PDF-compatible values
+        const computedStyle = window.getComputedStyle(el);
+        if (computedStyle.color && computedStyle.color.includes('oklch')) {
+          el.style.color = PDF_COLORS['--foreground'];
+        }
+        if (computedStyle.backgroundColor && computedStyle.backgroundColor.includes('oklch')) {
+          el.style.backgroundColor = PDF_COLORS['--background'];
+        }
+        if (computedStyle.borderColor && computedStyle.borderColor.includes('oklch')) {
+          el.style.borderColor = PDF_COLORS['--border'];
+        }
+      });
+
+      // Enhance headings and lists for PDF readability
+      element.querySelectorAll('h2').forEach(h2 => {
+        h2.style.borderBottom = '1px solid #000000';
+        h2.style.paddingBottom = '6px';
+        h2.style.marginTop = '18px';
+        h2.style.marginBottom = '10px';
+      });
+      // Center the name (first heading) and the following paragraph (contact line)
+      const firstH1 = element.querySelector('h1');
+      if (firstH1) {
+        firstH1.style.textAlign = 'center';
+        const next = firstH1.nextElementSibling;
+        if (next) next.style.textAlign = 'center';
+      }
+      element.querySelectorAll('p').forEach(p => {
+        p.style.margin = '6px 0';
+      });
+      element.querySelectorAll('ul').forEach(ul => {
+        ul.style.listStyleType = 'disc';
+        ul.style.paddingLeft = '20px';
+        ul.style.margin = '6px 0 6px 16px';
+      });
       
       const opt = {
         margin: [15, 15],
@@ -182,7 +241,13 @@ export default function ResumeBuilder({ initialContent }) {
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
       };
 
-      await html2pdf().set(opt).from(element).save();
+      // Generate PDF with error handling
+      try {
+        await html2pdf().set(opt).from(element).save();
+      } catch (pdfError) {
+        console.error("PDF generation library error:", pdfError);
+        throw new Error("PDF generation failed. Please try again.");
+      }
     } catch (error) {
       console.error("PDF generation error:", error);
       toast.error("Failed to generate PDF. Please try again.");
@@ -213,9 +278,9 @@ export default function ResumeBuilder({ initialContent }) {
         </h1>
         <div className="space-x-2">
           <Button
-            variant="destructive"
             onClick={handleSubmit(onSubmit)}
             disabled={isSaving}
+            className="bg-blue-700 hover:bg-blue-700 text-white"
           >
             {isSaving ? (
               <>
@@ -229,7 +294,7 @@ export default function ResumeBuilder({ initialContent }) {
               </>
             )}
           </Button>
-          <Button onClick={generatePDF} disabled={isGenerating}>
+          <Button onClick={generatePDF} disabled={isGenerating} className="bg-green-600 hover:bg-green-700 text-white">
             {isGenerating ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -245,7 +310,8 @@ export default function ResumeBuilder({ initialContent }) {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}  
+      >
         <TabsList>
           <TabsTrigger value="edit">Form</TabsTrigger>
           <TabsTrigger value="preview">Markdown</TabsTrigger>
@@ -257,7 +323,7 @@ export default function ResumeBuilder({ initialContent }) {
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Contact Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border rounded-lg bg-muted/50">
-                <div className="space-y-2">
+                <div className="space-y-4">
                   <label className="text-sm font-medium">Email</label>
                   <Input
                     {...register("contactInfo.email")}
@@ -271,7 +337,7 @@ export default function ResumeBuilder({ initialContent }) {
                     </p>
                   )}
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <label className="text-sm font-medium">Mobile Number</label>
                   <Input
                     {...register("contactInfo.mobile")}
@@ -284,7 +350,7 @@ export default function ResumeBuilder({ initialContent }) {
                     </p>
                   )}
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-6">
                   <label className="text-sm font-medium">LinkedIn URL</label>
                   <Input
                     {...register("contactInfo.linkedin")}
@@ -297,14 +363,14 @@ export default function ResumeBuilder({ initialContent }) {
                     </p>
                   )}
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <label className="text-sm font-medium">
-                    Twitter/X Profile
+                    GitHub URL
                   </label>
                   <Input
                     {...register("contactInfo.twitter")}
                     type="url"
-                    placeholder="https://twitter.com/your-handle"
+                    placeholder="https://github.com/your-username"
                   />
                   {errors.contactInfo?.twitter && (
                     <p className="text-sm text-red-500">
@@ -417,6 +483,37 @@ export default function ResumeBuilder({ initialContent }) {
                 </p>
               )}
             </div>
+
+            {/* Certifications & Achievements */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Certifications & Achievements</h3>
+              <div className="space-y-3">
+                {certificationFields.map((field, index) => (
+                  <div key={field.id} className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border rounded-lg bg-muted/50">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Certificate Title</label>
+                      <Input
+                        {...register(`certifications.${index}.title`)}
+                        type="text"
+                        placeholder="e.g., AWS Certified Cloud Practitioner"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Organization/Foundation</label>
+                      <Input
+                        {...register(`certifications.${index}.organization`)}
+                        type="text"
+                        placeholder="e.g., Amazon Web Services"
+                      />
+                    </div>
+                    <div className="md:col-span-2 flex justify-end">
+                      <Button type="button" variant="outline" onClick={() => removeCertification(index)}>Remove</Button>
+                    </div>
+                  </div>
+                ))}
+                <Button type="button" onClick={() => appendCertification({ title: "", organization: "" })}>Add Certification</Button>
+              </div>
+            </div>
           </form>
         </TabsContent>
 
@@ -460,28 +557,27 @@ export default function ResumeBuilder({ initialContent }) {
               preview={resumeMode}
             />
           </div>
-          <div className="hidden">
-            <div id="resume-pdf" style={{
-              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
-              lineHeight: '1.6',
-              color: '#000000',
-              background: '#ffffff',
-              padding: '20px',
-              maxWidth: '800px',
-              margin: '0 auto'
-            }}>
-              <MDEditor.Markdown
-                source={previewContent}
-                style={{
-                  background: "transparent",
-                  color: "black",
-                  fontFamily: 'inherit'
-                }}
-              />
-            </div>
-          </div>
+          {/* Removed old hidden container; a persistent off-screen container is rendered below */}
         </TabsContent>
       </Tabs>
+      {/* Persistent off-screen PDF container so generation works regardless of tab */}
+      <div style={{ position: 'fixed', left: '-10000px', top: '-10000px', width: '0', height: '0', overflow: 'hidden' }}>
+        <div id="resume-pdf" style={{
+          fontFamily: 'Georgia, "Times New Roman", serif',
+          lineHeight: '1.6',
+          color: '#000000',
+          background: '#ffffff',
+          padding: '20px',
+          maxWidth: '800px',
+          margin: '0 auto',
+          border: '2px solid #000'
+        }}>
+          <MDEditor.Markdown
+            source={previewContent}
+            style={{ background: 'transparent', color: 'black', fontFamily: 'inherit' }}
+          />
+        </div>
+      </div>
     </div>
   );
 }

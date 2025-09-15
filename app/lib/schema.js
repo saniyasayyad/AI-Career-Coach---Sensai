@@ -43,6 +43,12 @@ export const entrySchema = z.object({
   url: z.string().url().optional().or(z.literal("")),
 });
 
+// Schema for certifications/achievements entries (simplified)
+export const certificationSchema = z.object({
+  title: z.string().min(1, "Certificate title is required"),
+  organization: z.string().min(1, "Organization/Foundation is required"),
+});
+
 // Schema for the complete resume form
 export const resumeSchema = z.object({
   contactInfo: z.object({
@@ -56,6 +62,7 @@ export const resumeSchema = z.object({
   experience: z.array(entrySchema).optional(),
   education: z.array(entrySchema).optional(),
   projects: z.array(entrySchema).optional(),
+  certifications: z.array(certificationSchema).optional(),
 });
 
 // Schema for cover letter generation
