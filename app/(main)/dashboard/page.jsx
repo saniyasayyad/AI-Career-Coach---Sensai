@@ -5,6 +5,8 @@ import DashboardView from './_components/dashboard-view';
 
 import { getIndustryInsights } from '../../../actions/dashboard.js';
 
+export const dynamic = "force-dynamic";
+
 
 const IndustryInsightsPage = async() => {
   const onboardingStatus = await getUserOnboardingStatus();
