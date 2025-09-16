@@ -9,11 +9,16 @@ const isPublicRoute = createRouteMatcher([
 
 export default clerkMiddleware((auth, req) => {
   try {
+    // If Clerk envs are missing in this environment, skip protection to avoid 500s
+    if (!process.env.CLERK_SECRET_KEY || !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
+      return;
+    }
+
     if (!isPublicRoute(req)) {
       auth.protect();
     }
   } catch (_err) {
-    // Fail-soft: if Clerk is misconfigured in prod, avoid 500s from middleware
+    // Fail-soft: avoid crashing middleware in production
     return;
   }
 });
