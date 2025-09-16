@@ -6,6 +6,7 @@ import DashboardView from './_components/dashboard-view';
 import { getIndustryInsights } from '../../../actions/dashboard.js';
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 
 const IndustryInsightsPage = async() => {
