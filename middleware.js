@@ -8,8 +8,13 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware((auth, req) => {
-  if (!isPublicRoute(req)) {
-    auth.protect();   
+  try {
+    if (!isPublicRoute(req)) {
+      auth.protect();
+    }
+  } catch (_err) {
+    // Fail-soft: if Clerk is misconfigured in prod, avoid 500s from middleware
+    return;
   }
 });
 
